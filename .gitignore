@@ -13,6 +13,13 @@ prepared_*.csv
 association_rules_*.csv
 *_rules.csv
 
+# Phase 4 outputs - saved models
+*.pkl
+*_metadata.json
+*predictions*.csv
+*_input.csv
+production*.csv
+
 # Python cache
 __pycache__/
 *.py[cod]

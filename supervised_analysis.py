@@ -14,6 +14,10 @@ import pandas as pd
 import numpy as np
 from typing import Dict, List, Tuple, Optional, Union
 import warnings
+import joblib
+import json
+from datetime import datetime
+from pathlib import Path
 
 from sklearn.model_selection import train_test_split, GridSearchCV, RandomizedSearchCV
 from sklearn.preprocessing import StandardScaler, LabelEncoder
@@ -444,12 +448,159 @@ class SupervisedAMRAnalysis:
         
         return metrics
     
+    def save_model(
+        self,
+        pipeline: Pipeline,
+        filepath: str,
+        metadata: Optional[Dict] = None
+    ) -> None:
+        """
+        Save trained pipeline to disk using joblib.
+        
+        Args:
+            pipeline: Trained scikit-learn pipeline
+            filepath: Path to save the model (e.g., 'high_MAR_model.pkl')
+            metadata: Optional metadata dictionary to save alongside model
+        """
+        # Save the pipeline
+        joblib.dump(pipeline, filepath)
+        print(f"Model saved to: {filepath}")
+        
+        # Save metadata if provided
+        if metadata is not None:
+            metadata_path = filepath.replace('.pkl', '_metadata.json')
+            with open(metadata_path, 'w') as f:
+                # Convert numpy types to Python types for JSON serialization
+                serializable_metadata = self._convert_to_serializable(metadata)
+                json.dump(serializable_metadata, f, indent=2)
+            print(f"Metadata saved to: {metadata_path}")
+    
+    def load_model(self, filepath: str) -> Pipeline:
+        """
+        Load trained pipeline from disk.
+        
+        Args:
+            filepath: Path to the saved model file
+            
+        Returns:
+            Pipeline: Loaded scikit-learn pipeline
+        """
+        pipeline = joblib.load(filepath)
+        print(f"Model loaded from: {filepath}")
+        
+        # Try to load metadata if it exists
+        metadata_path = filepath.replace('.pkl', '_metadata.json')
+        if Path(metadata_path).exists():
+            with open(metadata_path, 'r') as f:
+                metadata = json.load(f)
+            print(f"Metadata loaded from: {metadata_path}")
+            return pipeline, metadata
+        
+        return pipeline
+    
+    def save_pipeline_with_metadata(
+        self,
+        pipeline: Pipeline,
+        filepath: str,
+        task_name: str,
+        feature_cols: List[str],
+        model_type: str,
+        hyperparameters: Dict,
+        train_metrics: Dict,
+        val_metrics: Dict,
+        test_metrics: Dict,
+        splits: Dict,
+        additional_info: Optional[Dict] = None
+    ) -> None:
+        """
+        Save pipeline with comprehensive metadata for deployment.
+        
+        This is the recommended method for saving models for deployment as it
+        includes all necessary information for using the model.
+        
+        Args:
+            pipeline: Trained scikit-learn pipeline
+            filepath: Path to save the model (e.g., 'high_MAR_model.pkl')
+            task_name: Name of the task (e.g., 'high_mar_prediction')
+            feature_cols: List of feature column names used for training
+            model_type: Type of classifier (e.g., 'RandomForest', 'LogisticRegression')
+            hyperparameters: Dictionary of hyperparameters used
+            train_metrics: Training metrics dictionary
+            val_metrics: Validation metrics dictionary
+            test_metrics: Test metrics dictionary
+            splits: Dictionary with train/val/test sizes
+            additional_info: Optional additional information
+        """
+        # Create comprehensive metadata
+        metadata = {
+            'model_info': {
+                'task_name': task_name,
+                'model_type': model_type,
+                'hyperparameters': hyperparameters,
+                'created_at': datetime.now().isoformat()
+            },
+            'features': {
+                'feature_columns': feature_cols,
+                'num_features': len(feature_cols),
+                'feature_format': 'Binary resistance encoding (R=1, S/I=0)'
+            },
+            'data_splits': splits,
+            'metrics': {
+                'training': self._convert_to_serializable(train_metrics) if train_metrics else None,
+                'validation': self._convert_to_serializable(val_metrics),
+                'test': self._convert_to_serializable(test_metrics)
+            }
+        }
+        
+        if additional_info:
+            metadata['additional_info'] = additional_info
+        
+        # Save model and metadata
+        self.save_model(pipeline, filepath, metadata)
+        
+        print("\n" + "="*80)
+        print("MODEL DEPLOYMENT PACKAGE CREATED")
+        print("="*80)
+        print(f"Task: {task_name}")
+        print(f"Model: {model_type}")
+        print(f"Features: {len(feature_cols)} columns")
+        print(f"Test Accuracy: {test_metrics['accuracy']:.4f}")
+        print(f"Test F1: {test_metrics['f1']:.4f}")
+        print(f"\nFiles created:")
+        print(f"  - {filepath} (model)")
+        print(f"  - {filepath.replace('.pkl', '_metadata.json')} (metadata)")
+        print("="*80)
+    
+    def _convert_to_serializable(self, obj):
+        """
+        Convert numpy/pandas types to Python native types for JSON serialization.
+        
+        Args:
+            obj: Object to convert
+            
+        Returns:
+            JSON-serializable object
+        """
+        if isinstance(obj, dict):
+            return {key: self._convert_to_serializable(value) for key, value in obj.items()}
+        elif isinstance(obj, list):
+            return [self._convert_to_serializable(item) for item in obj]
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, (np.integer, np.floating)):
+            return obj.item()
+        elif isinstance(obj, (pd.Series, pd.DataFrame)):
+            return obj.to_dict()
+        else:
+            return obj
+    
     def task1_high_mar_prediction(
         self,
         feature_cols: List[str],
         threshold: float = 0.3,
         include_tuning: bool = True,
-        tune_top_n: int = 3
+        tune_top_n: int = 3,
+        save_model_path: Optional[str] = None
     ) -> Dict:
         """
         Task 1: Binary classification to predict high MAR/MDR.
@@ -459,6 +610,7 @@ class SupervisedAMRAnalysis:
             threshold: MAR index threshold (default: 0.3)
             include_tuning: Whether to perform hyperparameter tuning
             tune_top_n: Number of top models to tune
+            save_model_path: Optional path to save the final model (e.g., 'high_MAR_model.pkl')
             
         Returns:
             Dict: Complete results including all models and final test metrics
@@ -531,13 +683,44 @@ class SupervisedAMRAnalysis:
             task_type='binary'
         )
         
+        # Save model if path provided
+        if save_model_path:
+            # Get training metrics on train+val
+            X_train_full = pd.concat([X_train, X_val], axis=0)
+            y_train_full = pd.concat([y_train, y_val], axis=0)
+            y_train_pred = best_result['pipeline'].predict(X_train_full)
+            train_metrics = self.evaluate_model(y_train_full, y_train_pred, average='binary')
+            
+            self.save_pipeline_with_metadata(
+                pipeline=best_result['pipeline'],
+                filepath=save_model_path,
+                task_name='high_mar_prediction',
+                feature_cols=feature_cols,
+                model_type=best_name,
+                hyperparameters=best_result.get('best_params', {}),
+                train_metrics=train_metrics,
+                val_metrics=best_result['val_metrics'],
+                test_metrics=test_metrics,
+                splits={
+                    'train_size': len(X_train),
+                    'val_size': len(X_val),
+                    'test_size': len(X_test)
+                },
+                additional_info={
+                    'threshold': threshold,
+                    'task_type': 'binary'
+                }
+            )
+        
         return {
             'task': 'high_mar_prediction',
             'all_models': results,
             'best_model': best_name,
             'best_params': best_result['best_params'],
+            'best_pipeline': best_result['pipeline'],
             'val_metrics': best_result['val_metrics'],
             'test_metrics': test_metrics,
+            'feature_cols': feature_cols,
             'splits': {
                 'train_size': len(X_train),
                 'val_size': len(X_val),
