@@ -16,7 +16,9 @@ association_rules_*.csv
 # Phase 4 outputs - saved models
 *.pkl
 *_metadata.json
-predictions_*.csv
+predictions*.csv
+new_isolates.csv
+cli_predictions.csv
 
 # Python cache
 __pycache__/
