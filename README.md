@@ -1,6 +1,6 @@
 # AMR Analysis Pipeline - Complete Implementation
 
-This repository provides a comprehensive analysis pipeline for Antimicrobial Resistance (AMR) data, implementing both data preparation (Phase 1) and unsupervised pattern recognition (Phase 2).
+This repository provides a comprehensive analysis pipeline for Antimicrobial Resistance (AMR) data, implementing data preparation (Phase 1), unsupervised pattern recognition (Phase 2), and supervised machine learning (Phase 3).
 
 ## Table of Contents
 
@@ -8,12 +8,13 @@ This repository provides a comprehensive analysis pipeline for Antimicrobial Res
 - [Installation](#installation)
 - [Phase 1: Data Preparation](#phase-1-data-preparation)
 - [Phase 2: Unsupervised Pattern Recognition](#phase-2-unsupervised-pattern-recognition)
+- [Phase 3: Supervised Pattern Recognition](#phase-3-supervised-pattern-recognition)
 - [Quick Start](#quick-start)
 - [Testing](#testing)
 
 ## Overview
 
-The AMR analysis pipeline consists of two main phases:
+The AMR analysis pipeline consists of three main phases:
 
 **Phase 1: Data Preparation**
 1. Data ingestion and inspection
@@ -27,6 +28,11 @@ The AMR analysis pipeline consists of two main phases:
 1. Clustering (k-means, hierarchical, DBSCAN)
 2. Dimensionality reduction (PCA, t-SNE, UMAP)
 3. Association rule mining (Apriori, FP-Growth)
+
+**Phase 3: Supervised Pattern Recognition**
+1. Binary classification: Predict high MAR/MDR
+2. Multiclass classification: Predict bacterial species
+3. Multiclass classification: Predict region/source
 
 ## Installation
 
@@ -835,6 +841,519 @@ analyzer = UnsupervisedAMRAnalysis(
 **Convenience Functions:**
 - `quick_clustering_analysis(df, feature_cols, methods, k)`
 - `quick_dimred_analysis(df, feature_cols, methods)`
+
+---
+
+# Phase 3: Supervised Pattern Recognition
+
+Phase 3 implements supervised machine learning for three classification tasks.
+
+## Quick Start - Phase 3
+
+### Task 1: High MAR Prediction
+
+```python
+from data_preparation import AMRDataPreparation
+from supervised_analysis import SupervisedAMRAnalysis
+
+# Prepare data
+prep = AMRDataPreparation('rawdata.csv')
+df = prep.prepare_data(
+    include_binary=True,
+    include_ordinal=False,
+    include_onehot=False,
+    scale=False
+)
+
+# Get features
+groups = prep.get_feature_groups()
+feature_cols = groups['binary_resistance']
+
+# Run Task 1: Predict high MAR/MDR
+analyzer = SupervisedAMRAnalysis(df)
+results = analyzer.task1_high_mar_prediction(
+    feature_cols=feature_cols,
+    threshold=0.3,
+    include_tuning=True,
+    tune_top_n=3
+)
+
+print(f"Best Model: {results['best_model']}")
+print(f"Test F1: {results['test_metrics']['f1']:.4f}")
+print(f"Test Accuracy: {results['test_metrics']['accuracy']:.4f}")
+```
+
+### Task 2: Species Classification
+
+```python
+# Run Task 2: Predict species from resistance profile
+results = analyzer.task2_species_classification(
+    feature_cols=feature_cols,
+    min_samples=10,
+    include_tuning=True
+)
+
+print(f"Best Model: {results['best_model']}")
+print(f"Test F1 (macro): {results['test_metrics']['f1']:.4f}")
+print(f"Test F1 (weighted): {results['test_metrics']['f1_weighted']:.4f}")
+```
+
+### Task 3: Region/Source Classification
+
+```python
+# Add species features for Task 3
+species_cols = [col for col in df.columns if 'bacterial_species_' in col]
+feature_cols_task3 = feature_cols + species_cols
+
+# Run Task 3: Predict region
+results = analyzer.task3_region_source_classification(
+    feature_cols=feature_cols_task3,
+    target_col='administrative_region',
+    include_tuning=True
+)
+
+print(f"Best Model: {results['best_model']}")
+print(f"Test Accuracy: {results['test_metrics']['accuracy']:.4f}")
+```
+
+### Quick All Tasks
+
+```python
+from supervised_analysis import quick_supervised_analysis
+
+# Run all tasks at once
+results = quick_supervised_analysis(
+    df,
+    task='all',
+    include_tuning=True
+)
+
+for task_name, task_results in results.items():
+    print(f"\n{task_name.upper()}:")
+    print(f"  Best Model: {task_results['best_model']}")
+    print(f"  Test F1: {task_results['test_metrics']['f1']:.4f}")
+```
+
+## 3.0 Common Pipeline Elements
+
+### 3.0.1 Data Splitting (70/15/15)
+
+All three tasks use stratified splitting:
+
+```python
+X_train, X_val, X_test, y_train, y_val, y_test = analyzer.stratified_split(
+    X, y,
+    train_size=0.7,
+    val_size=0.15,
+    test_size=0.15,
+    random_state=42
+)
+```
+
+**Features:**
+- Stratified by target class to maintain class proportions
+- Removes rows with missing target values
+- Returns train (70%), validation (15%), and test (15%) sets
+
+### 3.0.2 Evaluation Metrics
+
+**Binary Classification (Task 1):**
+- Accuracy
+- Precision
+- Recall
+- F1-score (positive class = high MAR = 1)
+- Confusion matrix
+
+**Multiclass Classification (Tasks 2 & 3):**
+- Accuracy
+- Macro-averaged precision, recall, F1
+- Weighted F1
+- Confusion matrix
+
+```python
+metrics = analyzer.evaluate_model(y_true, y_pred, average='binary')
+# Returns: {'accuracy', 'precision', 'recall', 'f1', 'confusion_matrix'}
+```
+
+### 3.0.3 Algorithms
+
+All tasks use 6 classification algorithms:
+
+1. **Logistic Regression**
+   - Hyperparameters: C (regularization strength)
+   
+2. **Random Forest**
+   - Hyperparameters: n_estimators, max_depth, min_samples_leaf
+   
+3. **Gradient Boosting Machine (GBM)**
+   - Hyperparameters: n_estimators, learning_rate, max_depth
+   
+4. **Naive Bayes**
+   - Hyperparameters: var_smoothing (alpha)
+   
+5. **Support Vector Machine (SVM)**
+   - Hyperparameters: C, kernel (linear/RBF), gamma
+   
+6. **k-Nearest Neighbors (kNN)**
+   - Hyperparameters: n_neighbors, weights
+
+**Pipeline includes:**
+- Imputation (median for numeric features)
+- One-hot encoding (for categorical features)
+- Scaling (for SVM, kNN, Logistic Regression)
+- Classifier
+
+```python
+# Example: Get all algorithm configs
+configs = analyzer.get_algorithm_configs()
+
+# Train all models
+results = analyzer.train_and_evaluate_all_models(
+    X_train, X_val, y_train, y_val,
+    task_type='binary'  # or 'multiclass'
+)
+```
+
+## 3.1 Task 1: Predict High MAR/MDR
+
+### 3.1.1 Goal
+
+Binary classification: Predict whether an isolate is multidrug-resistant (high MAR) based on its resistance pattern.
+
+### 3.1.2 Target Variable
+
+```python
+# Define high_MAR threshold
+high_MAR = 1 if mar_index >= 0.3 else 0
+```
+
+The threshold can be customized:
+
+```python
+y = analyzer.create_high_mar_target(threshold=0.3)  # Default
+y = analyzer.create_high_mar_target(threshold=0.4)  # Stricter
+```
+
+### 3.1.3 Features
+
+**Primary features:**
+- Binary resistance features: `ampicillin_binary`, `cefotaxime_binary`, etc.
+
+**Optional context features:**
+- One-hot encoded `bacterial_species`
+- One-hot encoded `sample_source`
+- One-hot encoded `administrative_region`
+
+**Note:** Do NOT include `mar_index` itself as a feature (it's the target).
+
+```python
+# Option A: AMR features only
+feature_cols = groups['binary_resistance']
+
+# Option B: AMR + context
+feature_cols = groups['binary_resistance'] + groups['context_encoded']
+```
+
+### 3.1.4 Model Training and Selection
+
+**Workflow:**
+
+1. **Baseline training:** Train all 6 models on train set
+2. **Validation:** Evaluate on validation set
+3. **Hyperparameter tuning:** Grid search for top N models
+4. **Model selection:** Choose best based on validation F1-score
+
+```python
+results = analyzer.task1_high_mar_prediction(
+    feature_cols=feature_cols,
+    threshold=0.3,
+    include_tuning=True,  # Enable hyperparameter tuning
+    tune_top_n=3          # Tune top 3 models
+)
+
+# Access all model results
+for name, result in results['all_models'].items():
+    print(f"{name}: Val F1 = {result['val_metrics']['f1']:.4f}")
+
+# Best model
+print(f"Best: {results['best_model']}")
+print(f"Best params: {results['best_params']}")
+```
+
+### 3.1.5 Final Training and Test Evaluation
+
+**Workflow:**
+
+1. Combine train + validation → `train_full`
+2. Re-fit best model on `train_full`
+3. Evaluate once on test set
+4. Report final metrics
+
+```python
+# Final test metrics
+print(f"Test Accuracy: {results['test_metrics']['accuracy']:.4f}")
+print(f"Test Precision: {results['test_metrics']['precision']:.4f}")
+print(f"Test Recall: {results['test_metrics']['recall']:.4f}")
+print(f"Test F1: {results['test_metrics']['f1']:.4f}")
+print(f"Confusion Matrix:\n{results['test_metrics']['confusion_matrix']}")
+```
+
+## 3.2 Task 2: Species Classification from Resistance Profile
+
+### 3.2.1 Goal
+
+Multiclass classification: Predict `bacterial_species` using only AMR resistance patterns.
+
+### 3.2.2 Target Variable
+
+```python
+y = df['bacterial_species']
+```
+
+**Rare species handling:**
+- Species with < `min_samples` examples are grouped as "Other"
+- Default: `min_samples=10`
+
+```python
+results = analyzer.task2_species_classification(
+    feature_cols=feature_cols,
+    min_samples=10  # Group species with <10 samples
+)
+```
+
+### 3.2.3 Features
+
+**Primary features:**
+- Binary resistance features: All `*_binary` columns
+
+**Strategy:**
+- Use ONLY AMR features (do not include species, region, or source)
+- This tests whether AMR patterns alone can distinguish species
+
+```python
+# Prepare data WITHOUT one-hot encoding species
+prep = AMRDataPreparation('rawdata.csv')
+df = prep.prepare_data(
+    include_binary=True,
+    include_onehot=False,  # Don't encode species (it's the target!)
+    scale=False
+)
+
+feature_cols = groups['binary_resistance']
+```
+
+### 3.2.4 Pipeline and Evaluation
+
+**Workflow:**
+
+1. 70/15/15 stratified split by `bacterial_species`
+2. Run all 6 algorithms
+3. Compute multiclass metrics:
+   - Accuracy
+   - Macro-averaged F1 (equal weight per class)
+   - Weighted F1 (weighted by class frequency)
+   - Confusion matrix
+4. Tune hyperparameters for top models
+5. Select best model
+
+```python
+results = analyzer.task2_species_classification(
+    feature_cols=feature_cols,
+    min_samples=10,
+    include_tuning=True,
+    tune_top_n=3
+)
+```
+
+### 3.2.5 Final Evaluation
+
+```python
+print(f"Test Accuracy: {results['test_metrics']['accuracy']:.4f}")
+print(f"Test F1 (macro): {results['test_metrics']['f1']:.4f}")
+print(f"Test F1 (weighted): {results['test_metrics']['f1_weighted']:.4f}")
+
+# Confusion matrix shows which species are confused
+cm = results['test_metrics']['confusion_matrix']
+print("Confusion Matrix:")
+print(cm)
+```
+
+**Interpretation:**
+- High accuracy → AMR patterns distinguish species well
+- Confusion matrix → Identifies which species have similar resistance profiles
+
+## 3.3 Task 3: Region/Source Classification
+
+### 3.3.1 Goal
+
+Multiclass classification: Predict where an isolate came from based on AMR pattern + species.
+
+### 3.3.2 Target Options
+
+**Option A: Administrative Region**
+
+```python
+results = analyzer.task3_region_source_classification(
+    feature_cols=feature_cols,
+    target_col='administrative_region'
+)
+```
+
+**Option B: Sample Source**
+
+```python
+results = analyzer.task3_region_source_classification(
+    feature_cols=feature_cols,
+    target_col='sample_source'
+)
+```
+
+**Rare class handling:**
+- Classes with < `min_samples` are grouped as "Other"
+
+### 3.3.3 Features
+
+**Required features:**
+- Binary resistance features: All `*_binary` columns
+- One-hot encoded `bacterial_species`
+
+**Rationale:**
+- Investigates whether certain species + AMR signatures are associated with regions/sources
+
+```python
+# Prepare features
+feature_cols = groups['binary_resistance']
+
+# Add species one-hot columns
+species_cols = [col for col in df.columns if 'bacterial_species_' in col]
+feature_cols += species_cols
+```
+
+### 3.3.4 Pipeline and Evaluation
+
+Same workflow as Task 2:
+
+1. 70/15/15 stratified split by target
+2. Train all 6 algorithms
+3. Evaluate with multiclass metrics
+4. Tune top candidates
+5. Select best model
+
+```python
+results = analyzer.task3_region_source_classification(
+    feature_cols=feature_cols,
+    target_col='sample_source',  # or 'administrative_region'
+    min_samples=10,
+    include_tuning=True,
+    tune_top_n=3
+)
+```
+
+### 3.3.5 Final Evaluation
+
+```python
+print(f"Test Accuracy: {results['test_metrics']['accuracy']:.4f}")
+print(f"Test F1 (macro): {results['test_metrics']['f1']:.4f}")
+print(f"Test F1 (weighted): {results['test_metrics']['f1_weighted']:.4f}")
+
+# Confusion matrix
+cm = results['test_metrics']['confusion_matrix']
+print("Confusion Matrix:")
+print(cm)
+```
+
+## Examples - Phase 3
+
+See comprehensive examples in `examples_supervised.py`:
+
+```bash
+python examples_supervised.py
+```
+
+**Included examples:**
+
+1. **Example 1:** Task 1 - High MAR prediction with tuning
+2. **Example 2:** Task 2 - Species classification
+3. **Example 3:** Task 3 - Region classification
+4. **Example 4:** Task 3 - Source classification
+5. **Example 5:** Quick all tasks
+6. **Example 6:** Compare different feature sets
+7. **Example 7:** Test custom MAR thresholds
+
+## Testing - Phase 3
+
+Run comprehensive test suite:
+
+```bash
+python test_supervised_analysis.py
+```
+
+**Test Coverage:**
+- 20 tests covering all supervised methods
+- Data splitting and stratification
+- All 6 classification algorithms
+- Binary and multiclass tasks
+- Hyperparameter tuning
+- Evaluation metrics
+- Rare class grouping
+- Pipeline persistence
+
+## Best Practices - Phase 3
+
+1. **Data Preparation:**
+   - Use binary encoding for supervised tasks
+   - Keep original context columns for Tasks 2 & 3
+   - Do not include target variable as a feature
+
+2. **Feature Selection:**
+   - Task 1: Use AMR features ± context
+   - Task 2: Use ONLY AMR features (not species/region)
+   - Task 3: Use AMR + species features (not target context)
+
+3. **Model Selection:**
+   - Use validation F1 as primary metric
+   - Consider precision/recall trade-offs
+   - Examine confusion matrix for insights
+
+4. **Hyperparameter Tuning:**
+   - Tune top 3 models to save time
+   - Use GridSearchCV with 5-fold CV
+   - Focus on models with high baseline performance
+
+5. **Interpretation:**
+   - Report both macro and weighted F1 for multiclass
+   - Analyze confusion matrix to understand errors
+   - Consider class imbalance in interpretation
+
+## API Reference - Phase 3
+
+### SupervisedAMRAnalysis Class
+
+Main class for supervised analysis.
+
+**Initialization:**
+```python
+analyzer = SupervisedAMRAnalysis(df)  # df from data_preparation
+```
+
+**Task Methods:**
+- `task1_high_mar_prediction(feature_cols, threshold=0.3, include_tuning=True, tune_top_n=3)`
+- `task2_species_classification(feature_cols, min_samples=10, include_tuning=True, tune_top_n=3)`
+- `task3_region_source_classification(feature_cols, target_col, min_samples=10, include_tuning=True, tune_top_n=3)`
+
+**Core Methods:**
+- `create_high_mar_target(threshold=0.3)` - Create binary target
+- `stratified_split(X, y, train_size=0.7, val_size=0.15, test_size=0.15)` - Split data
+- `get_algorithm_configs()` - Get all algorithm configurations
+- `create_pipeline(model, numeric_features, scale=True)` - Create sklearn pipeline
+- `evaluate_model(y_true, y_pred, average='binary')` - Calculate metrics
+- `train_and_evaluate_all_models(X_train, X_val, y_train, y_val, task_type)` - Train all 6 models
+- `tune_hyperparameters(X_train, y_train, model_name, param_grid, pipeline)` - Grid search
+- `select_best_model(results, metric='f1')` - Select best by metric
+- `final_evaluation(pipeline, X_train, X_val, X_test, y_train, y_val, y_test)` - Final test
+
+**Convenience Function:**
+- `quick_supervised_analysis(df, task='all', feature_cols=None, **kwargs)` - Run tasks quickly
 
 ## License
 
