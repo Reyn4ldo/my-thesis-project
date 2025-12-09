@@ -54,6 +54,168 @@ pip install pandas numpy scikit-learn matplotlib seaborn mlxtend umap-learn
 
 ---
 
+## Quick Start
+
+This section provides a quick guide to get started with the AMR analysis pipeline. For detailed documentation of each phase, see the phase-specific sections below.
+
+### Complete End-to-End Workflow
+
+The simplest way to go from raw data to a deployed model:
+
+```python
+from data_preparation import AMRDataPreparation
+from supervised_analysis import SupervisedAMRAnalysis
+from model_deployment import ModelDeployment
+
+# Phase 1: Prepare data
+prep = AMRDataPreparation('rawdata.csv')
+df = prep.prepare_data(
+    include_binary=True,
+    include_ordinal=False,
+    include_onehot=True,
+    scale=False,
+    drop_original_int=True
+)
+
+# Get features
+groups = prep.get_feature_groups()
+feature_cols = groups['binary_resistance']
+
+# Phase 3: Train model
+analyzer = SupervisedAMRAnalysis(df)
+results = analyzer.task1_high_mar_prediction(
+    feature_cols=feature_cols,
+    threshold=0.3,
+    include_tuning=True,
+    save_model_path='high_MAR_model.pkl'
+)
+
+print(f"Best Model: {results['best_model']}")
+print(f"Test F1: {results['test_metrics']['f1']:.4f}")
+print(f"Test Accuracy: {results['test_metrics']['accuracy']:.4f}")
+
+# Phase 4: Deploy model
+deployment = ModelDeployment('high_MAR_model.pkl')
+
+# Make predictions on new data
+predictions = deployment.predict_from_csv(
+    input_csv='new_isolates.csv',
+    output_csv='predictions.csv',
+    include_proba=True
+)
+
+print(f"Predictions saved to predictions.csv")
+```
+
+### Quick Start by Use Case
+
+#### 1. Data Preparation Only
+
+```python
+from data_preparation import quick_prepare
+
+# One-line preparation with defaults
+df = quick_prepare('rawdata.csv', output_path='prepared_data.csv')
+```
+
+#### 2. Clustering Analysis
+
+```python
+from data_preparation import AMRDataPreparation
+from unsupervised_analysis import UnsupervisedAMRAnalysis
+
+# Prepare with ordinal encoding
+prep = AMRDataPreparation('rawdata.csv')
+df = prep.prepare_data(
+    include_binary=False,
+    include_ordinal=True,
+    include_onehot=False,
+    scale=True
+)
+
+# Cluster analysis
+groups = prep.get_feature_groups()
+feature_cols = groups['ordinal_resistance'] + groups['amr_indices']
+analyzer = UnsupervisedAMRAnalysis(df, feature_cols)
+results = analyzer.kmeans_clustering(k_range=(2, 10))
+
+# Visualize
+fig = analyzer.plot_kmeans_evaluation()
+```
+
+#### 3. Predict Bacterial Species
+
+```python
+from data_preparation import AMRDataPreparation
+from supervised_analysis import SupervisedAMRAnalysis
+
+# Prepare data
+prep = AMRDataPreparation('rawdata.csv')
+df = prep.prepare_data(include_binary=True, include_onehot=False)
+
+# Train species classifier
+groups = prep.get_feature_groups()
+analyzer = SupervisedAMRAnalysis(df)
+results = analyzer.task2_species_classification(
+    feature_cols=groups['binary_resistance'],
+    include_tuning=True
+)
+
+print(f"Species prediction accuracy: {results['test_metrics']['accuracy']:.4f}")
+```
+
+#### 4. Deploy Saved Model
+
+```python
+from model_deployment import ModelDeployment
+
+# Load and use model
+deployment = ModelDeployment('high_MAR_model.pkl')
+
+# Get required features
+required_features = deployment.get_required_features()
+
+# Single prediction (provide all required binary resistance features)
+features = {
+    'ampicillin_binary': 1,
+    'cefotaxime_binary': 1,
+    'tetracycline_binary': 0,
+    # ... include all features from required_features list
+}
+result = deployment.predict_single(features, return_proba=True)
+print(f"Prediction: {result['prediction']}")
+```
+
+### Running Complete Examples
+
+The repository includes comprehensive example scripts:
+
+```bash
+# Data preparation examples
+python examples.py
+
+# Unsupervised analysis examples (10 examples)
+python examples_unsupervised.py
+
+# Supervised analysis examples (7 examples)
+python examples_supervised.py
+
+# Deployment examples (4 examples)
+python examples_deployment.py
+
+# Complete end-to-end workflow
+python complete_workflow.py
+```
+
+### Next Steps
+
+- **For Data Preparation**: See [Phase 1: Data Preparation](#phase-1-data-preparation)
+- **For Clustering/Pattern Discovery**: See [Phase 2: Unsupervised Pattern Recognition](#phase-2-unsupervised-pattern-recognition)
+- **For Classification Tasks**: See [Phase 3: Supervised Pattern Recognition](#phase-3-supervised-pattern-recognition)
+- **For Model Deployment**: See [Phase 4: Model Deployment](#phase-4-model-deployment)
+
+---
+
 # Phase 1: Data Preparation
 
 Phase 1 implements comprehensive data preparation for AMR analysis.
