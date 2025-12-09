@@ -2,6 +2,17 @@
 prepared_*.csv
 *_prepared.csv
 
+# Phase 2 outputs - visualization files
+*.png
+*.jpg
+*.pdf
+!docs/*.png
+!docs/*.jpg
+
+# Phase 2 outputs - association rules
+association_rules_*.csv
+*_rules.csv
+
 # Python cache
 __pycache__/
 *.py[cod]
