@@ -1,10 +1,21 @@
-# Phase 1: Data Preparation for AMR Analysis
+# AMR Analysis Pipeline - Complete Implementation
 
-This module provides comprehensive data preparation functionality for Antimicrobial Resistance (AMR) analysis, implementing all requirements from Phase 1 of the analysis pipeline.
+This repository provides a comprehensive analysis pipeline for Antimicrobial Resistance (AMR) data, implementing both data preparation (Phase 1) and unsupervised pattern recognition (Phase 2).
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Installation](#installation)
+- [Phase 1: Data Preparation](#phase-1-data-preparation)
+- [Phase 2: Unsupervised Pattern Recognition](#phase-2-unsupervised-pattern-recognition)
+- [Quick Start](#quick-start)
+- [Testing](#testing)
 
 ## Overview
 
-The data preparation module handles:
+The AMR analysis pipeline consists of two main phases:
+
+**Phase 1: Data Preparation**
 1. Data ingestion and inspection
 2. Cleaning S/I/R interpretations
 3. Binary and ordinal resistance encoding
@@ -12,15 +23,28 @@ The data preparation module handles:
 5. Missing value handling
 6. Feature scaling
 
+**Phase 2: Unsupervised Pattern Recognition**
+1. Clustering (k-means, hierarchical, DBSCAN)
+2. Dimensionality reduction (PCA, t-SNE, UMAP)
+3. Association rule mining (Apriori, FP-Growth)
+
 ## Installation
 
 ### Requirements
 
 ```bash
-pip install pandas numpy scikit-learn
+pip install pandas numpy scikit-learn matplotlib seaborn mlxtend umap-learn
 ```
 
-## Quick Start
+**Note:** `umap-learn` is optional but recommended for UMAP analysis.
+
+---
+
+# Phase 1: Data Preparation
+
+Phase 1 implements comprehensive data preparation for AMR analysis.
+
+## Quick Start - Phase 1
 
 ### Basic Usage
 
@@ -338,6 +362,479 @@ This occurs when scaling columns with all NaN values. These columns are handled 
 
 ### Issue: Too many missing values
 Adjust `drop_threshold` parameter in `handle_missing_values()` to be more or less aggressive.
+
+---
+
+# Phase 2: Unsupervised Pattern Recognition
+
+Phase 2 implements unsupervised learning methods to discover patterns in AMR data.
+
+## Quick Start - Phase 2
+
+### Clustering Analysis
+
+```python
+from data_preparation import AMRDataPreparation
+from unsupervised_analysis import UnsupervisedAMRAnalysis
+
+# Prepare data for clustering
+prep = AMRDataPreparation('rawdata.csv')
+df = prep.prepare_data(
+    include_binary=False,
+    include_ordinal=True,  # Use ordinal for clustering
+    include_onehot=False,
+    scale=True
+)
+
+# Get features
+groups = prep.get_feature_groups()
+feature_cols = groups['ordinal_resistance'] + groups['amr_indices']
+
+# Initialize analyzer
+analyzer = UnsupervisedAMRAnalysis(df, feature_cols)
+
+# Run k-means clustering
+results = analyzer.kmeans_clustering(k_range=(2, 10))
+
+# Plot evaluation
+fig = analyzer.plot_kmeans_evaluation()
+```
+
+### Dimensionality Reduction
+
+```python
+# Run PCA
+pca_results = analyzer.pca_analysis(n_components=3)
+
+# Run t-SNE
+tsne_results = analyzer.tsne_analysis(n_components=2)
+
+# Visualize
+fig = analyzer.plot_dimred_scatter(method='pca', color_by='bacterial_species')
+```
+
+### Association Rule Mining
+
+```python
+# Prepare transactions
+transactions = analyzer.prepare_transactions(
+    resistance_threshold=0.5,
+    include_metadata=True,
+    mar_threshold=0.3
+)
+
+# Mine rules with Apriori
+rules = analyzer.apriori_mining(
+    transactions,
+    min_support=0.05,
+    min_confidence=0.6,
+    min_lift=1.0
+)
+
+# Interpret top rules
+formatted_rules = analyzer.interpret_rules(rules, top_n=10)
+```
+
+## 2.1 Clustering Methods
+
+### 2.1.1 K-means Clustering
+
+**Purpose:** Partition isolates into k clusters based on AMR features.
+
+**Methods:**
+- Runs for k = 2–10
+- Uses elbow method and silhouette scores to determine optimal k
+- Provides cluster labels for each isolate
+
+**Example:**
+
+```python
+analyzer = UnsupervisedAMRAnalysis(df, feature_cols)
+
+# Run k-means
+results = analyzer.kmeans_clustering(k_range=(2, 10))
+
+# Plot evaluation metrics
+fig = analyzer.plot_kmeans_evaluation()
+
+# Analyze clusters for k=5
+cluster_labels = results['labels'][5]
+analysis = analyzer.analyze_clusters(cluster_labels, method_name='K-means')
+```
+
+**Output:**
+- `inertias`: Within-cluster sum of squares for each k
+- `silhouette_scores`: Silhouette coefficient for each k
+- `labels`: Cluster assignments for each k value
+- Evaluation plots showing elbow curve and silhouette scores
+
+### 2.1.2 Hierarchical Clustering
+
+**Purpose:** Build a hierarchy of clusters using Ward linkage.
+
+**Methods:**
+- Computes distance matrix (Euclidean on standardized features)
+- Uses Ward linkage to minimize variance
+- Cuts dendrogram at specified height to extract clusters
+
+**Example:**
+
+```python
+# Run hierarchical clustering
+results = analyzer.hierarchical_clustering(n_clusters=5, linkage_method='ward')
+
+# Plot dendrogram
+fig = analyzer.plot_dendrogram(max_display_levels=10)
+
+# Analyze clusters
+analysis = analyzer.analyze_clusters(results['labels'], method_name='Hierarchical')
+```
+
+**Output:**
+- `linkage_matrix`: Hierarchical clustering linkage matrix
+- `labels`: Cluster assignments
+- `silhouette_score`: Clustering quality metric
+- Dendrogram visualization
+
+### 2.1.3 DBSCAN
+
+**Purpose:** Density-based clustering that identifies clusters and outliers.
+
+**Methods:**
+- Uses standardized features
+- Requires two parameters:
+  - `eps`: Maximum distance between neighbors
+  - `min_samples`: Minimum samples in a neighborhood (e.g., 5–10)
+- Uses k-distance plot for parameter selection
+- Labels outliers as -1
+
+**Example:**
+
+```python
+# Plot k-distance to choose eps
+fig = analyzer.plot_k_distance(k=5)
+
+# Run DBSCAN with selected parameters
+results = analyzer.dbscan_clustering(eps=2.0, min_samples=5)
+
+print(f"Clusters: {results['n_clusters']}")
+print(f"Noise points: {results['n_noise']}")
+
+# Analyze clusters
+analysis = analyzer.analyze_clusters(results['labels'], method_name='DBSCAN')
+```
+
+**Output:**
+- `n_clusters`: Number of clusters found
+- `n_noise`: Number of outlier points
+- `labels`: Cluster assignments (-1 for outliers)
+- k-distance plot for parameter selection
+
+### 2.1.4 Cluster Analysis
+
+For each cluster, the analysis computes:
+
+- **Resistance proportions**: Percentage resistant for each antibiotic
+- **MAR index statistics**: Mean, median, std of MAR index
+- **Scored resistance**: Average resistance score
+- **Metadata distributions**: Most common species, sources, regions, ESBL status
+
+**Example:**
+
+```python
+# Analyze clusters
+analysis_df = analyzer.analyze_clusters(cluster_labels)
+
+print(analysis_df[['cluster', 'size', 'mar_index_mean', 'mar_index_median']])
+```
+
+### 2.1.5 Cluster Visualizations
+
+**Resistance Heatmap:**
+```python
+fig = analyzer.plot_cluster_heatmap(cluster_labels, figsize=(12, 8))
+```
+Shows resistance patterns for all isolates sorted by cluster.
+
+**Cluster Composition:**
+```python
+fig = analyzer.plot_cluster_composition(cluster_labels, 
+                                       metadata_col='bacterial_species')
+```
+Shows distribution of metadata (e.g., species) within each cluster.
+
+## 2.2 Dimensionality Reduction
+
+### 2.2.1 PCA (Principal Component Analysis)
+
+**Purpose:** Linear dimensionality reduction to identify main sources of variation.
+
+**Example:**
+
+```python
+# Run PCA
+pca_results = analyzer.pca_analysis(n_components=3)
+
+print(f"Explained variance: {pca_results['explained_variance_ratio']}")
+print(f"Cumulative variance: {pca_results['cumulative_variance']}")
+
+# Visualize
+fig = analyzer.plot_dimred_scatter(method='pca', color_by='bacterial_species')
+```
+
+**Output:**
+- PC1, PC2, PC3 components
+- Explained variance ratios
+- Cumulative variance explained
+
+### 2.2.2 t-SNE (t-Distributed Stochastic Neighbor Embedding)
+
+**Purpose:** Non-linear dimensionality reduction for visualization.
+
+**Example:**
+
+```python
+# Run t-SNE
+tsne_results = analyzer.tsne_analysis(n_components=2, perplexity=30.0)
+
+# Visualize
+fig = analyzer.plot_dimred_scatter(method='tsne', color_by='sample_source')
+```
+
+**Output:**
+- TSNE1, TSNE2 2D embedding
+- Preserves local structure better than PCA
+
+### 2.2.3 UMAP (Uniform Manifold Approximation and Projection)
+
+**Purpose:** Non-linear dimensionality reduction that preserves both local and global structure.
+
+**Example:**
+
+```python
+# Run UMAP (requires umap-learn package)
+umap_results = analyzer.umap_analysis(n_components=2, n_neighbors=15, min_dist=0.1)
+
+# Visualize
+fig = analyzer.plot_dimred_scatter(method='umap', color_by='administrative_region')
+```
+
+**Output:**
+- UMAP1, UMAP2 2D embedding
+- Better preserves global structure than t-SNE
+
+### 2.2.4 Visualization Options
+
+Scatter plots can be colored by:
+- **Species**: `color_by='bacterial_species'`
+- **Sample source**: `color_by='sample_source'`
+- **Region**: `color_by='administrative_region'`
+- **MAR index**: `color_by='mar_index'` (continuous)
+- **Clusters**: `color_by='cluster'` (after clustering)
+- **ESBL status**: `color_by='esbl'`
+
+### 2.2.5 Interpretation
+
+**Key questions to explore:**
+- Do high-MAR isolates group together?
+- Are species/regions separated in AMR-space?
+- Do clusters from k-means correspond to natural groupings?
+- Which antibiotics drive the main components in PCA?
+
+## 2.3 Association Rule Mining
+
+### 2.3.1 Transaction Preparation
+
+Transform each isolate into a transaction with items:
+- Resistance items: `R_ampicillin`, `R_cefotaxime`, etc.
+- Metadata items: `species=escherichia_coli`, `source=drinking_water`
+- MAR category: `MAR_high` if MAR index ≥ threshold
+
+**Example:**
+
+```python
+# Prepare transactions
+transactions = analyzer.prepare_transactions(
+    resistance_threshold=0.5,
+    include_metadata=True,
+    mar_threshold=0.3  # High MAR if ≥ 0.3
+)
+
+print(f"Transactions: {transactions.shape}")
+print(f"Items: {transactions.columns.tolist()}")
+```
+
+### 2.3.2 Apriori Algorithm
+
+**Purpose:** Mine frequent itemsets and generate association rules.
+
+**Parameters:**
+- `min_support`: Minimum support threshold (e.g., ≥ 5% = 0.05)
+- `min_confidence`: Minimum confidence threshold (e.g., ≥ 60% = 0.6)
+- `min_lift`: Minimum lift threshold (e.g., > 1.0)
+
+**Example:**
+
+```python
+# Mine rules with Apriori
+rules = analyzer.apriori_mining(
+    transactions,
+    min_support=0.05,
+    min_confidence=0.6,
+    min_lift=1.0
+)
+
+# Display top rules
+formatted_rules = analyzer.interpret_rules(rules, top_n=10)
+```
+
+### 2.3.3 FP-Growth Algorithm
+
+**Purpose:** Efficient algorithm for mining frequent itemsets (faster than Apriori).
+
+**Example:**
+
+```python
+# Mine rules with FP-Growth
+rules = analyzer.fpgrowth_mining(
+    transactions,
+    min_support=0.05,
+    min_confidence=0.6,
+    min_lift=1.0
+)
+
+# Save rules
+rules.to_csv('association_rules.csv', index=False)
+```
+
+### 2.3.4 Rule Interpretation
+
+**Rule format:** `{antecedent} => {consequent}`
+
+**Metrics:**
+- **Support**: Frequency of itemset in dataset
+- **Confidence**: P(consequent | antecedent)
+- **Lift**: How much more likely consequent occurs with antecedent vs. independently
+
+**Example rules:**
+```
+{R_ampicillin, R_cefotaxime} => {R_ceftiofur}
+  Support: 0.15, Confidence: 0.75, Lift: 2.3
+
+{species=klebsiella, source=effluent} => {MAR_high}
+  Support: 0.08, Confidence: 0.82, Lift: 3.1
+```
+
+**Interpretation:**
+- High lift (> 2): Strong association between items
+- High confidence (> 0.7): Reliable rule for prediction
+- Rules reveal co-resistance patterns and contextual relationships
+
+### 2.3.5 Common Patterns to Look For
+
+1. **Co-resistance patterns**: Which antibiotics tend to be resistant together?
+2. **Species-specific patterns**: Do certain species show specific resistance profiles?
+3. **Source-specific patterns**: Are certain sources associated with high MAR?
+4. **Regional patterns**: Do specific regions show distinct resistance patterns?
+
+## Examples
+
+See comprehensive examples in:
+- `examples_unsupervised.py`: 10 detailed examples covering all Phase 2 functionality
+
+Run examples:
+```bash
+python examples_unsupervised.py
+```
+
+**Example outputs:**
+- Example 1: K-means with elbow method and silhouette analysis
+- Example 2: Hierarchical clustering with dendrogram
+- Example 3: DBSCAN with parameter selection
+- Example 4-6: PCA, t-SNE, UMAP analysis
+- Example 7-8: Association rule mining with Apriori and FP-Growth
+- Example 9: Combined clustering and dimensionality reduction
+- Example 10: Comparative analysis of clustering methods
+
+## Testing - Phase 2
+
+Run comprehensive test suite:
+
+```bash
+python test_unsupervised_analysis.py
+```
+
+**Test Coverage:**
+- 20 tests covering all unsupervised methods
+- Clustering: k-means, hierarchical, DBSCAN
+- Dimensionality reduction: PCA, t-SNE, UMAP
+- Association rule mining: Apriori, FP-Growth
+- Visualization functions
+- Integration workflows
+
+## Best Practices - Phase 2
+
+1. **For Clustering**: Use ordinal encoding with standardized features
+2. **Optimal k Selection**: Use both elbow method and silhouette scores
+3. **DBSCAN Parameters**: Use k-distance plot to select eps
+4. **Dimensionality Reduction**: Use PCA first for linear relationships, then t-SNE/UMAP for non-linear
+5. **Association Rules**: Start with higher support (0.1) and adjust down if needed
+6. **Interpretation**: Always analyze clusters by multiple metadata dimensions
+
+## Workflow Recommendations
+
+### Complete Unsupervised Analysis Workflow
+
+1. **Prepare data with ordinal encoding**
+2. **Run multiple clustering methods** (k-means, hierarchical, DBSCAN)
+3. **Compare clustering results** using silhouette scores
+4. **Analyze cluster characteristics** (resistance patterns, MAR index, metadata)
+5. **Perform dimensionality reduction** (PCA, t-SNE)
+6. **Visualize clusters** in reduced dimensional space
+7. **Mine association rules** to find co-resistance patterns
+8. **Interpret findings** in context of species, sources, regions
+
+## API Reference
+
+### UnsupervisedAMRAnalysis Class
+
+Main class for unsupervised analysis.
+
+**Initialization:**
+```python
+analyzer = UnsupervisedAMRAnalysis(
+    df,                    # Prepared dataframe
+    feature_cols,          # Feature columns for analysis
+    metadata_cols=None     # Metadata columns for labeling
+)
+```
+
+**Clustering Methods:**
+- `kmeans_clustering(k_range, standardize=True, random_state=42)`
+- `hierarchical_clustering(n_clusters, linkage_method='ward', standardize=True)`
+- `dbscan_clustering(eps, min_samples, standardize=True)`
+- `analyze_clusters(cluster_labels, method_name)`
+- `plot_kmeans_evaluation(figsize)`
+- `plot_dendrogram(max_display_levels, figsize)`
+- `plot_k_distance(k, figsize)`
+- `plot_cluster_heatmap(cluster_labels, resistance_cols, figsize)`
+- `plot_cluster_composition(cluster_labels, metadata_col, figsize)`
+
+**Dimensionality Reduction Methods:**
+- `pca_analysis(n_components, standardize=True)`
+- `tsne_analysis(n_components, perplexity, standardize=True, random_state=42)`
+- `umap_analysis(n_components, n_neighbors, min_dist, standardize=True, random_state=42)`
+- `plot_dimred_scatter(method, color_by, figsize, alpha)`
+
+**Association Rule Mining Methods:**
+- `prepare_transactions(resistance_threshold, include_metadata, mar_threshold)`
+- `apriori_mining(transactions, min_support, min_confidence, min_lift, max_len)`
+- `fpgrowth_mining(transactions, min_support, min_confidence, min_lift, max_len)`
+- `interpret_rules(rules, top_n)`
+
+**Convenience Functions:**
+- `quick_clustering_analysis(df, feature_cols, methods, k)`
+- `quick_dimred_analysis(df, feature_cols, methods)`
 
 ## License
 
