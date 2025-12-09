@@ -132,26 +132,42 @@ def example_3_task3_region_classification():
     print("EXAMPLE 3: TASK 3 - REGION CLASSIFICATION")
     print("="*80)
     
-    # Prepare data with binary encoding and species one-hot
+    # Prepare data with custom pipeline to keep administrative_region as target
     prep = AMRDataPreparation('rawdata.csv')
-    df = prep.prepare_data(
-        include_binary=True,
-        include_ordinal=False,
-        include_onehot=True,  # Include species and other context
-        scale=False,
-        drop_original_int=True
+    
+    # Load and clean data
+    df_raw = prep.load_data()
+    df = prep.clean_sir_interpretations(df_raw)
+    
+    # Encode resistance
+    df = prep.encode_binary_resistance(df, missing_as_susceptible=True)
+    
+    # Handle missing values
+    df = prep.handle_missing_values(df, strategy='conservative')
+    
+    # One-hot encode only non-target columns (keep administrative_region, sample_source, bacterial_species)
+    df = prep.encode_categorical_onehot(
+        df, 
+        columns=['national_site', 'local_site', 'esbl']
     )
     
-    # Features: AMR + species (but not region!)
-    groups = prep.get_feature_groups()
-    feature_cols = groups['binary_resistance']
+    # Drop original interpretation columns
+    cols_to_drop = [col for col in prep.antibiotic_int_cols if col in df.columns]
+    df = df.drop(columns=cols_to_drop)
     
-    # Add species one-hot columns
+    # Features: AMR + species (but not region!)
+    feature_cols = [col for col in df.columns if '_binary' in col]
+    
+    # We need to one-hot encode bacterial_species for features, but keep the original
+    species_dummies = pd.get_dummies(df['bacterial_species'], prefix='bacterial_species', dtype=int)
+    df = pd.concat([df, species_dummies], axis=1)
+    
+    # Add species one-hot columns to features
     species_cols = [col for col in df.columns if 'bacterial_species_' in col]
     feature_cols += species_cols
     
     print(f"\nFeatures: {len(feature_cols)} total")
-    print(f"  - AMR features: {len(groups['binary_resistance'])}")
+    print(f"  - AMR features: {len([col for col in feature_cols if '_binary' in col])}")
     print(f"  - Species features: {len(species_cols)}")
     
     # Run Task 3 for region
@@ -191,19 +207,37 @@ def example_4_task3_source_classification():
     print("EXAMPLE 4: TASK 3 - SOURCE CLASSIFICATION")
     print("="*80)
     
-    # Prepare data
+    # Prepare data with custom pipeline to keep sample_source as target
     prep = AMRDataPreparation('rawdata.csv')
-    df = prep.prepare_data(
-        include_binary=True,
-        include_ordinal=False,
-        include_onehot=True,
-        scale=False,
-        drop_original_int=True
+    
+    # Load and clean data
+    df_raw = prep.load_data()
+    df = prep.clean_sir_interpretations(df_raw)
+    
+    # Encode resistance
+    df = prep.encode_binary_resistance(df, missing_as_susceptible=True)
+    
+    # Handle missing values
+    df = prep.handle_missing_values(df, strategy='conservative')
+    
+    # One-hot encode only non-target columns (keep sample_source, administrative_region, bacterial_species)
+    df = prep.encode_categorical_onehot(
+        df, 
+        columns=['national_site', 'local_site', 'esbl']
     )
     
+    # Drop original interpretation columns
+    cols_to_drop = [col for col in prep.antibiotic_int_cols if col in df.columns]
+    df = df.drop(columns=cols_to_drop)
+    
     # Features: AMR + species
-    groups = prep.get_feature_groups()
-    feature_cols = groups['binary_resistance']
+    feature_cols = [col for col in df.columns if '_binary' in col]
+    
+    # We need to one-hot encode bacterial_species for features, but keep the original
+    species_dummies = pd.get_dummies(df['bacterial_species'], prefix='bacterial_species', dtype=int)
+    df = pd.concat([df, species_dummies], axis=1)
+    
+    # Add species one-hot columns to features
     species_cols = [col for col in df.columns if 'bacterial_species_' in col]
     feature_cols += species_cols
     
@@ -246,15 +280,32 @@ def example_5_quick_all_tasks():
     print("EXAMPLE 5: QUICK ALL TASKS")
     print("="*80)
     
-    # Prepare data
+    # Prepare data with custom pipeline to keep target columns
     prep = AMRDataPreparation('rawdata.csv')
-    df = prep.prepare_data(
-        include_binary=True,
-        include_ordinal=False,
-        include_onehot=True,
-        scale=False,
-        drop_original_int=True
+    
+    # Load and clean data
+    df_raw = prep.load_data()
+    df = prep.clean_sir_interpretations(df_raw)
+    
+    # Encode resistance
+    df = prep.encode_binary_resistance(df, missing_as_susceptible=True)
+    
+    # Handle missing values
+    df = prep.handle_missing_values(df, strategy='conservative')
+    
+    # One-hot encode only non-target columns (keep sample_source, administrative_region, bacterial_species)
+    df = prep.encode_categorical_onehot(
+        df, 
+        columns=['national_site', 'local_site', 'esbl']
     )
+    
+    # Drop original interpretation columns
+    cols_to_drop = [col for col in prep.antibiotic_int_cols if col in df.columns]
+    df = df.drop(columns=cols_to_drop)
+    
+    # We need to one-hot encode bacterial_species for features, but keep the original
+    species_dummies = pd.get_dummies(df['bacterial_species'], prefix='bacterial_species', dtype=int)
+    df = pd.concat([df, species_dummies], axis=1)
     
     # Run all tasks with quick function
     results = quick_supervised_analysis(
