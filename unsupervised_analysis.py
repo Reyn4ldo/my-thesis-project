@@ -21,9 +21,17 @@ from sklearn.metrics import silhouette_score, silhouette_samples
 from sklearn.preprocessing import StandardScaler
 from scipy.cluster.hierarchy import dendrogram, linkage
 from scipy.spatial.distance import pdist
-from mlxtend.frequent_patterns import apriori, fpgrowth, association_rules
 from typing import Dict, List, Tuple, Optional, Union
 import warnings
+
+# Import optional dependencies with error handling
+try:
+    from mlxtend.frequent_patterns import apriori, fpgrowth, association_rules
+    MLXTEND_AVAILABLE = True
+except ImportError:
+    MLXTEND_AVAILABLE = False
+    warnings.warn("mlxtend not installed. Association rule mining will not be available. "
+                 "Install with: pip install mlxtend")
 
 
 class UnsupervisedAMRAnalysis:
@@ -35,6 +43,14 @@ class UnsupervisedAMRAnalysis:
     - Dimensionality reduction (PCA, t-SNE, UMAP)
     - Association rule mining (Apriori, FP-Growth)
     """
+    
+    # Class constants for column patterns
+    BINARY_PATTERN = '_binary'
+    ORDINAL_PATTERN = '_ordinal'
+    MIC_PATTERN = '_mic'
+    
+    # Default visualization limits
+    DEFAULT_MAX_RESISTANCE_COLS = 20
     
     def __init__(self, df: pd.DataFrame, feature_cols: List[str], metadata_cols: Optional[List[str]] = None):
         """
@@ -347,9 +363,9 @@ class UnsupervisedAMRAnalysis:
         df_clustered = self.df.copy()
         df_clustered['cluster'] = cluster_labels
         
-        # Identify antibiotic resistance columns
+        # Identify antibiotic resistance columns using class constants
         resistance_cols = [col for col in df_clustered.columns 
-                          if '_binary' in col or '_ordinal' in col]
+                          if self.BINARY_PATTERN in col or self.ORDINAL_PATTERN in col]
         
         # Identify metadata columns
         metadata_cols = ['bacterial_species', 'sample_source', 
@@ -403,6 +419,7 @@ class UnsupervisedAMRAnalysis:
     
     def plot_cluster_heatmap(self, cluster_labels: np.ndarray,
                             resistance_cols: Optional[List[str]] = None,
+                            max_cols: Optional[int] = None,
                             figsize: Tuple[int, int] = (12, 8)) -> plt.Figure:
         """
         Plot heatmap of resistance patterns sorted by cluster.
@@ -410,6 +427,7 @@ class UnsupervisedAMRAnalysis:
         Args:
             cluster_labels (np.ndarray): Cluster assignments
             resistance_cols (List[str], optional): Resistance columns to plot
+            max_cols (int, optional): Maximum columns to display (default: DEFAULT_MAX_RESISTANCE_COLS)
             figsize (Tuple[int, int]): Figure size
             
         Returns:
@@ -421,9 +439,11 @@ class UnsupervisedAMRAnalysis:
         # Get resistance columns
         if resistance_cols is None:
             resistance_cols = [col for col in df_clustered.columns 
-                             if '_binary' in col or '_ordinal' in col]
+                             if self.BINARY_PATTERN in col or self.ORDINAL_PATTERN in col]
             # Limit to reasonable number for visualization
-            resistance_cols = resistance_cols[:20]
+            if max_cols is None:
+                max_cols = self.DEFAULT_MAX_RESISTANCE_COLS
+            resistance_cols = resistance_cols[:max_cols]
         
         # Sort by cluster
         df_sorted = df_clustered.sort_values('cluster')
@@ -689,20 +709,20 @@ class UnsupervisedAMRAnalysis:
         """
         transactions = pd.DataFrame(index=self.df.index)
         
-        # Add resistance items
+        # Add resistance items using class constants
         resistance_cols = [col for col in self.df.columns 
-                          if '_binary' in col or '_ordinal' in col]
+                          if self.BINARY_PATTERN in col or self.ORDINAL_PATTERN in col]
         
         for col in resistance_cols:
             # Create item name
-            antibiotic = col.replace('_binary', '').replace('_ordinal', '')
+            antibiotic = col.replace(self.BINARY_PATTERN, '').replace(self.ORDINAL_PATTERN, '')
             item_name = f'R_{antibiotic}'
             
             # Binary: already 0/1
-            if '_binary' in col:
+            if self.BINARY_PATTERN in col:
                 transactions[item_name] = self.df[col].fillna(0).astype(int)
             # Ordinal: threshold to binary
-            elif '_ordinal' in col:
+            elif self.ORDINAL_PATTERN in col:
                 transactions[item_name] = (self.df[col].fillna(0) >= 
                                           resistance_threshold * 2).astype(int)
         
@@ -743,6 +763,10 @@ class UnsupervisedAMRAnalysis:
         Returns:
             pd.DataFrame: Association rules
         """
+        if not MLXTEND_AVAILABLE:
+            raise ImportError("mlxtend is required for association rule mining. "
+                            "Install with: pip install mlxtend")
+        
         print(f"Running Apriori with min_support={min_support}...")
         
         # Find frequent itemsets
@@ -796,6 +820,10 @@ class UnsupervisedAMRAnalysis:
         Returns:
             pd.DataFrame: Association rules
         """
+        if not MLXTEND_AVAILABLE:
+            raise ImportError("mlxtend is required for association rule mining. "
+                            "Install with: pip install mlxtend")
+        
         print(f"Running FP-Growth with min_support={min_support}...")
         
         # Find frequent itemsets
