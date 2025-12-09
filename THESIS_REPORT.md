@@ -104,7 +104,7 @@ The MAR index quantifies the proportion of antibiotics to which an isolate shows
 | 75th Percentile | 0.158 |
 | Maximum | 1.500* |
 
-*Note: Maximum value >1.0 may indicate data quality issues or special encoding
+*Note: Maximum value of 1.500 appears in one isolate (vc_mrlwr1c1) where scored_resistance (6) exceeds num_antibiotics_tested (4), indicating a data quality issue in the raw data. Mathematically, MAR index should not exceed 1.0 as it represents the ratio of resistant antibiotics to total tested. This anomaly does not significantly affect overall analysis given it represents <0.2% of the dataset.
 
 **MAR Index Distribution:**
 - Low MAR (<0.2): ~75% of isolates
