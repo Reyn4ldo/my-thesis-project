@@ -1,6 +1,6 @@
 # AMR Analysis Pipeline - Complete Implementation
 
-This repository provides a comprehensive analysis pipeline for Antimicrobial Resistance (AMR) data, implementing data preparation (Phase 1), unsupervised pattern recognition (Phase 2), and supervised machine learning (Phase 3).
+This repository provides a comprehensive analysis pipeline for Antimicrobial Resistance (AMR) data, implementing data preparation (Phase 1), unsupervised pattern recognition (Phase 2), supervised machine learning (Phase 3), and model deployment (Phase 4).
 
 ## Table of Contents
 
@@ -9,12 +9,13 @@ This repository provides a comprehensive analysis pipeline for Antimicrobial Res
 - [Phase 1: Data Preparation](#phase-1-data-preparation)
 - [Phase 2: Unsupervised Pattern Recognition](#phase-2-unsupervised-pattern-recognition)
 - [Phase 3: Supervised Pattern Recognition](#phase-3-supervised-pattern-recognition)
+- [Phase 4: Model Deployment](#phase-4-model-deployment)
 - [Quick Start](#quick-start)
 - [Testing](#testing)
 
 ## Overview
 
-The AMR analysis pipeline consists of three main phases:
+The AMR analysis pipeline consists of four main phases:
 
 **Phase 1: Data Preparation**
 1. Data ingestion and inspection
@@ -33,6 +34,13 @@ The AMR analysis pipeline consists of three main phases:
 1. Binary classification: Predict high MAR/MDR
 2. Multiclass classification: Predict bacterial species
 3. Multiclass classification: Predict region/source
+
+**Phase 4: Model Deployment**
+1. Model saving with comprehensive metadata
+2. Command-line deployment tools
+3. Batch prediction from CSV files
+4. Single isolate prediction
+5. Web application integration (documentation)
 
 ## Installation
 
@@ -1354,6 +1362,360 @@ analyzer = SupervisedAMRAnalysis(df)  # df from data_preparation
 
 **Convenience Function:**
 - `quick_supervised_analysis(df, task='all', feature_cols=None, **kwargs)` - Run tasks quickly
+
+---
+
+# Phase 4: Model Deployment
+
+Phase 4 implements comprehensive model deployment functionality for trained AMR models, enabling their use in production environments.
+
+## Overview
+
+Phase 4 provides:
+1. **Model Saving**: Save trained pipelines with complete metadata
+2. **Model Loading**: Load saved models for deployment
+3. **Batch Prediction**: Predict from CSV files
+4. **Single Prediction**: Predict for individual isolates
+5. **Command-line Tools**: Ready-to-use deployment scripts
+
+## Quick Start - Phase 4
+
+### 4.1 Training and Saving a Model
+
+```python
+from data_preparation import AMRDataPreparation
+from supervised_analysis import SupervisedAMRAnalysis
+
+# Prepare data
+prep = AMRDataPreparation('rawdata.csv')
+df = prep.prepare_data(
+    include_binary=True,
+    include_ordinal=False,
+    include_onehot=True,
+    scale=False,
+    drop_original_int=True
+)
+
+# Get features
+groups = prep.get_feature_groups()
+feature_cols = groups['binary_resistance']
+
+# Train and save model
+analyzer = SupervisedAMRAnalysis(df)
+results = analyzer.task1_high_mar_prediction(
+    feature_cols=feature_cols,
+    threshold=0.3,
+    include_tuning=True,
+    tune_top_n=3,
+    save_model_path='high_MAR_model.pkl'  # Auto-save after training
+)
+```
+
+This creates two files:
+- `high_MAR_model.pkl` - The trained pipeline
+- `high_MAR_model_metadata.json` - Model metadata and documentation
+
+### 4.2 Using a Saved Model for Deployment
+
+#### 4.2.1 Batch Prediction from CSV
+
+```python
+from model_deployment import ModelDeployment
+
+# Load model
+deployment = ModelDeployment('high_MAR_model.pkl')
+
+# Make predictions on new data
+results = deployment.predict_from_csv(
+    input_csv='new_isolates.csv',
+    output_csv='predictions.csv',
+    include_proba=True,      # Include prediction probabilities
+    include_original=True    # Include original columns in output
+)
+```
+
+#### 4.2.2 Single Isolate Prediction
+
+```python
+# For real-time prediction (e.g., web applications)
+features = {
+    'AMP_binary': 1,
+    'GEN_binary': 0,
+    'CIP_binary': 0,
+    # ... all required features
+}
+
+result = deployment.predict_single(features, return_proba=True)
+print(f"Prediction: {result['prediction']}")
+print(f"Probability High MAR: {result['probability_class_1']:.2%}")
+```
+
+#### 4.2.3 Command-line Deployment
+
+```bash
+# View model information
+python deploy_model.py --model high_MAR_model.pkl --info
+
+# Make predictions
+python deploy_model.py \
+    --model high_MAR_model.pkl \
+    --input new_isolates.csv \
+    --output predictions.csv
+
+# Without probabilities
+python deploy_model.py \
+    --model high_MAR_model.pkl \
+    --input new_isolates.csv \
+    --output predictions.csv \
+    --no-proba
+```
+
+## Model Metadata
+
+Each saved model includes comprehensive metadata:
+
+```json
+{
+  "model_info": {
+    "task_name": "high_mar_prediction",
+    "model_type": "RandomForest",
+    "hyperparameters": {...},
+    "created_at": "2025-12-09T..."
+  },
+  "features": {
+    "feature_columns": [...],
+    "num_features": 45,
+    "feature_format": "Binary resistance encoding (R=1, S/I=0)"
+  },
+  "metrics": {
+    "training": {...},
+    "validation": {...},
+    "test": {...}
+  },
+  "data_splits": {
+    "train_size": 380,
+    "val_size": 81,
+    "test_size": 82
+  }
+}
+```
+
+## Deployment Scenarios
+
+### Scenario 1: Command-line Script
+
+**Use case**: Process batch files periodically
+
+```python
+# deploy_batch.py
+from model_deployment import predict_from_csv
+
+predict_from_csv(
+    model_path='high_MAR_model.pkl',
+    input_csv='new_lab_results.csv',
+    output_csv='predictions_' + date + '.csv'
+)
+```
+
+### Scenario 2: Web Application
+
+**Use case**: Interactive decision-support tool
+
+```python
+from flask import Flask, request, jsonify
+from model_deployment import ModelDeployment
+
+app = Flask(__name__)
+deployment = ModelDeployment('high_MAR_model.pkl')
+
+@app.route('/predict', methods=['POST'])
+def predict():
+    features = request.json
+    result = deployment.predict_single(features, return_proba=True)
+    return jsonify({
+        'prediction': 'High MAR' if result['prediction'] == 1 else 'Low MAR',
+        'confidence': result['probability_class_1']
+    })
+```
+
+### Scenario 3: Surveillance Dashboard
+
+**Use case**: Monitor trends over time
+
+```python
+import pandas as pd
+from model_deployment import ModelDeployment
+
+# Load model
+deployment = ModelDeployment('high_MAR_model.pkl')
+
+# Process monthly data
+for month in monthly_files:
+    # Load new data
+    df = pd.read_csv(month)
+    
+    # Make predictions
+    predictions = deployment.predict(df, include_proba=True)
+    
+    # Aggregate by region/site/time
+    df['prediction'] = predictions
+    summary = df.groupby(['region', 'site'])['prediction'].agg(['sum', 'count', 'mean'])
+    
+    # Visualize trends
+    plot_mdr_trends(summary)
+```
+
+## API Reference
+
+### SupervisedAMRAnalysis
+
+**Model Saving Methods:**
+
+```python
+# Save model with metadata
+save_pipeline_with_metadata(
+    pipeline, filepath, task_name, feature_cols, model_type,
+    hyperparameters, train_metrics, val_metrics, test_metrics,
+    splits, additional_info=None
+)
+
+# Simple save
+save_model(pipeline, filepath, metadata=None)
+
+# Load model
+load_model(filepath)
+```
+
+**Task Method with Auto-save:**
+
+```python
+task1_high_mar_prediction(
+    feature_cols,
+    threshold=0.3,
+    include_tuning=True,
+    tune_top_n=3,
+    save_model_path=None  # NEW: Optional path to save model
+)
+```
+
+### ModelDeployment Class
+
+```python
+# Initialize
+deployment = ModelDeployment(model_path)
+
+# Get information
+deployment.get_required_features()
+deployment.get_model_info()
+deployment.get_performance_metrics()
+
+# Make predictions
+predictions = deployment.predict(X, include_proba=True)
+
+# Batch prediction
+results = deployment.predict_from_csv(
+    input_csv, output_csv,
+    include_proba=True,
+    include_original=True
+)
+
+# Single prediction
+result = deployment.predict_single(features, return_proba=True)
+```
+
+### Convenience Functions
+
+```python
+from model_deployment import predict_from_csv, predict_single_isolate
+
+# Batch prediction
+predict_from_csv(model_path, input_csv, output_csv)
+
+# Single prediction
+predict_single_isolate(model_path, features, return_proba=True)
+```
+
+## Input Data Requirements
+
+New data for prediction must include all required features:
+
+1. **Binary resistance features**: All antibiotic columns with `_binary` suffix
+2. **Feature names**: Must match training data exactly
+3. **Missing values**: Will be imputed using pipeline's imputation strategy
+4. **Format**: CSV file with column headers
+
+Example input CSV structure:
+```csv
+AMP_binary,GEN_binary,CIP_binary,CTX_binary,...
+1,0,0,1,...
+0,1,0,0,...
+```
+
+## Output Format
+
+Predictions include:
+
+- **Prediction**: Class label (0 = Low MAR, 1 = High MAR)
+- **Probabilities**: Probability for each class (optional)
+- **Original data**: All input columns (optional)
+
+Example output:
+```csv
+AMP_binary,GEN_binary,...,high_mar_prediction_prediction,probability_class_0,probability_class_1
+1,0,...,1,0.12,0.88
+0,1,...,0,0.91,0.09
+```
+
+## Best Practices
+
+1. **Model Versioning**: Include version/date in model filename
+   - `high_MAR_model_v1.0_20250609.pkl`
+
+2. **Metadata Review**: Always check model metadata before deployment
+   - Review features, metrics, and hyperparameters
+
+3. **Feature Validation**: Ensure new data matches training data format
+   - Use `get_required_features()` to verify
+
+4. **Error Handling**: Wrap predictions in try-except blocks
+   - Handle missing features gracefully
+
+5. **Performance Monitoring**: Track prediction distribution over time
+   - Alert on significant changes
+
+6. **Model Retraining**: Retrain periodically with new data
+   - Monitor for concept drift
+
+## Examples
+
+Complete examples are provided in `examples_deployment.py`:
+
+```python
+# Run all examples
+python examples_deployment.py
+
+# Or import specific examples
+from examples_deployment import (
+    example_1_train_and_save_model,
+    example_2_load_and_predict,
+    example_3_single_isolate_prediction,
+    example_4_command_line_deployment
+)
+```
+
+## Testing
+
+Test the deployment functionality:
+
+```bash
+# Run deployment tests
+python -m unittest test_model_deployment -v
+
+# Run specific test
+python -m unittest test_model_deployment.TestModelDeployment.test_07_predict_from_csv -v
+```
+
+---
 
 ## License
 
