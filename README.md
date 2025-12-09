@@ -126,11 +126,17 @@ from unsupervised_analysis import UnsupervisedAMRAnalysis
 
 # Prepare with ordinal encoding
 prep = AMRDataPreparation('rawdata.csv')
-df = prep.prepare_data(include_ordinal=True, scale=True)
+df = prep.prepare_data(
+    include_binary=False,
+    include_ordinal=True,
+    include_onehot=False,
+    scale=True
+)
 
 # Cluster analysis
 groups = prep.get_feature_groups()
-analyzer = UnsupervisedAMRAnalysis(df, groups['ordinal_resistance'])
+feature_cols = groups['ordinal_resistance'] + groups['amr_indices']
+analyzer = UnsupervisedAMRAnalysis(df, feature_cols)
 results = analyzer.kmeans_clustering(k_range=(2, 10))
 
 # Visualize
@@ -155,7 +161,7 @@ results = analyzer.task2_species_classification(
     include_tuning=True
 )
 
-print(f"Species prediction accuracy: {results['test_metrics']['accuracy']:.2%}")
+print(f"Species prediction accuracy: {results['test_metrics']['accuracy']:.4f}")
 ```
 
 #### 4. Deploy Saved Model
@@ -166,8 +172,13 @@ from model_deployment import ModelDeployment
 # Load and use model
 deployment = ModelDeployment('high_MAR_model.pkl')
 
-# Single prediction
-features = {'ampicillin_binary': 1, 'cefotaxime_binary': 1, ...}
+# Single prediction (provide all required binary resistance features)
+features = {
+    'ampicillin_binary': 1,
+    'cefotaxime_binary': 1,
+    'tetracycline_binary': 0,
+    # ... include all required features from get_required_features()
+}
 result = deployment.predict_single(features, return_proba=True)
 print(f"Prediction: {result['prediction']}")
 ```
