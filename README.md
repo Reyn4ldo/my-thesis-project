@@ -172,12 +172,15 @@ from model_deployment import ModelDeployment
 # Load and use model
 deployment = ModelDeployment('high_MAR_model.pkl')
 
+# Get required features
+required_features = deployment.get_required_features()
+
 # Single prediction (provide all required binary resistance features)
 features = {
     'ampicillin_binary': 1,
     'cefotaxime_binary': 1,
     'tetracycline_binary': 0,
-    # ... include all required features from get_required_features()
+    # ... include all features from required_features list
 }
 result = deployment.predict_single(features, return_proba=True)
 print(f"Prediction: {result['prediction']}")
