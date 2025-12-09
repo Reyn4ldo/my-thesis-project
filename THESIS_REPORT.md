@@ -104,7 +104,14 @@ The MAR index quantifies the proportion of antibiotics to which an isolate shows
 | 75th Percentile | 0.158 |
 | Maximum | 1.500* |
 
-*Note: Maximum value of 1.500 appears in one isolate (vc_mrlwr1c1) where scored_resistance (6) exceeds num_antibiotics_tested (4), indicating a data quality issue in the raw data. Mathematically, MAR index = scored_resistance / num_antibiotics_tested should not exceed 1.0 as it represents the ratio of resistant antibiotics to total tested. **Data handling:** This anomalous value was retained in the dataset without modification to preserve data integrity, but was imputed (median replacement) when the isolate was part of the training set, given that it represents <0.2% of the dataset and does not significantly affect model training or evaluation.
+*Note: Maximum value of 1.500 indicates a data quality issue*
+
+**Details:**
+- Affected isolate: vc_mrlwr1c1 (1 isolate, <0.2% of dataset)
+- Issue: scored_resistance (6) exceeds num_antibiotics_tested (4)
+- Expected: MAR index = scored_resistance / num_antibiotics_tested ≤ 1.0
+- **Data handling:** Anomalous value retained to preserve data integrity; imputed (median) during model training
+- **Impact:** Negligible effect on overall analysis due to minimal frequency
 
 **MAR Index Distribution:**
 - Low MAR (<0.2): ~75% of isolates
@@ -684,17 +691,17 @@ Based on elbow method and silhouette analysis, k=4 clusters were identified:
 
 **Confusion Matrix (Test Set, N=87):**
 
-| | Predicted Low MAR | Predicted High MAR |
-|---|---|---|
-| **Actual Low MAR** | 73 (TN) | 1 (FP) |
-| **Actual High MAR** | 1 (FN) | 12 (TP) |
+| Actual \\ Predicted | Low MAR (0) | High MAR (1) |
+|---------------------|-------------|--------------|
+| **Low MAR (0)** | 73 (TN) | 1 (FP) |
+| **High MAR (1)** | 1 (FN) | 12 (TP) |
 
 **Normalized Confusion Matrix (% by row):**
 
-| | Predicted Low MAR | Predicted High MAR |
-|---|---|---|
-| **Actual Low MAR** | 98.6% | 1.4% |
-| **Actual High MAR** | 7.7% | 92.3% |
+| Actual \\ Predicted | Low MAR (0) | High MAR (1) |
+|---------------------|-------------|--------------|
+| **Low MAR (0)** | 98.6% | 1.4% |
+| **High MAR (1)** | 7.7% | 92.3% |
 
 **Legend:** TN = True Negative, FP = False Positive, FN = False Negative, TP = True Positive
 
@@ -1118,7 +1125,7 @@ Expanding to genomic data integration, multi-institutional validation, and causa
 - matplotlib, seaborn (visualization)
 
 **Code Repository:**
-- GitHub: Reyn4ldo/my-thesis-project
+- GitHub: https://github.com/Reyn4ldo/my-thesis-project
 - Documentation: README.md, DEPLOYMENT_GUIDE.md
 
 **Contact:**
