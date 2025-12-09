@@ -104,7 +104,7 @@ The MAR index quantifies the proportion of antibiotics to which an isolate shows
 | 75th Percentile | 0.158 |
 | Maximum | 1.500* |
 
-*Note: Maximum value of 1.500 appears in one isolate (vc_mrlwr1c1) where scored_resistance (6) exceeds num_antibiotics_tested (4), indicating a data quality issue in the raw data. Mathematically, MAR index should not exceed 1.0 as it represents the ratio of resistant antibiotics to total tested. This anomaly does not significantly affect overall analysis given it represents <0.2% of the dataset.
+*Note: Maximum value of 1.500 appears in one isolate (vc_mrlwr1c1) where scored_resistance (6) exceeds num_antibiotics_tested (4), indicating a data quality issue in the raw data. Mathematically, MAR index = scored_resistance / num_antibiotics_tested should not exceed 1.0 as it represents the ratio of resistant antibiotics to total tested. **Data handling:** This anomalous value was retained in the dataset without modification to preserve data integrity, but was imputed (median replacement) when the isolate was part of the training set, given that it represents <0.2% of the dataset and does not significantly affect model training or evaluation.
 
 **MAR Index Distribution:**
 - Low MAR (<0.2): ~75% of isolates
@@ -684,42 +684,19 @@ Based on elbow method and silhouette analysis, k=4 clusters were identified:
 
 **Confusion Matrix (Test Set, N=87):**
 
-```
-                    Predicted
-                 Low MAR  High MAR
-Actual  Low MAR     73        1
-        High MAR     1       12
-```
+| | Predicted Low MAR | Predicted High MAR |
+|---|---|---|
+| **Actual Low MAR** | 73 (TN) | 1 (FP) |
+| **Actual High MAR** | 1 (FN) | 12 (TP) |
 
-**Visualization:**
+**Normalized Confusion Matrix (% by row):**
 
-```
-         Predicted Label
-           0     1
-        ┌────────────┐
-    0   │ 73  │  1  │  ← True Negatives: 73, False Positives: 1
-A   │    │     │     │
-c   ├────────────┤
-t   1   │  1  │ 12  │  ← False Negatives: 1, True Positives: 12
-u   │    │     │     │
-a   └────────────┘
-l
-```
+| | Predicted Low MAR | Predicted High MAR |
+|---|---|---|
+| **Actual Low MAR** | 98.6% | 1.4% |
+| **Actual High MAR** | 7.7% | 92.3% |
 
-**Normalized (by row):**
-
-```
-         Predicted Label
-           0       1
-        ┌──────────────┐
-    0   │ 98.6%│ 1.4%│
-A   │      │     │
-c   ├──────────────┤
-t   1   │ 7.7%│ 92.3%│
-u   │      │     │
-a   └──────────────┘
-l
-```
+**Legend:** TN = True Negative, FP = False Positive, FN = False Negative, TP = True Positive
 
 **Error Analysis:**
 
@@ -1149,4 +1126,4 @@ Expanding to genomic data integration, multi-institutional validation, and causa
 
 ---
 
-**Last Updated:** December 9, 2025
+**Last Updated:** December 2025
