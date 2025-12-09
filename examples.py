@@ -337,10 +337,11 @@ def main():
         print("  - prepared_unsupervised.csv")
         print("  - prepared_complete.csv")
         
-    except Exception as e:
+    except (FileNotFoundError, ValueError, KeyError) as e:
         print(f"\n✗ Error: {e}")
         import traceback
         traceback.print_exc()
+        raise
 
 
 if __name__ == '__main__':

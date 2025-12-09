@@ -148,7 +148,6 @@ class AMRDataPreparation:
                     '*r': 'r',
                     '*i': 'i', 
                     '*s': 's',
-                    'nan': np.nan,
                     '': np.nan,
                     'unknown': np.nan
                 })
@@ -283,8 +282,16 @@ class AMRDataPreparation:
         """
         df_clean = df.copy()
         
-        # Drop rows with too many missing values
-        missing_per_row = df_clean.isnull().sum(axis=1) / len(df_clean.columns)
+        # Drop rows with too many missing values (based on key columns only)
+        # Consider only antibiotic interpretation and context columns for missingness assessment
+        key_cols = self.antibiotic_int_cols + [col for col in self.context_cols if col in df_clean.columns]
+        key_cols_present = [col for col in key_cols if col in df_clean.columns]
+        
+        if len(key_cols_present) > 0:
+            missing_per_row = df_clean[key_cols_present].isnull().sum(axis=1) / len(key_cols_present)
+        else:
+            missing_per_row = df_clean.isnull().sum(axis=1) / len(df_clean.columns)
+        
         rows_to_drop = missing_per_row > drop_threshold
         if rows_to_drop.sum() > 0:
             warnings.warn(f"Dropping {rows_to_drop.sum()} rows with >{drop_threshold*100}% missing values")
@@ -323,8 +330,8 @@ class AMRDataPreparation:
             columns = []
             for col in df_scaled.columns:
                 if df_scaled[col].dtype in ['float64', 'int64']:
-                    # Include AMR indices
-                    if any(x in col for x in ['mar_index', 'scored_resistance', 'num_antibiotics']):
+                    # Include AMR indices (using class attribute for consistency)
+                    if col in self.amr_indices:
                         columns.append(col)
                     # Include MIC columns
                     elif '_mic' in col:
