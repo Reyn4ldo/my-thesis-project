@@ -427,10 +427,18 @@ class SupervisedAMRAnalysis:
         average = 'binary' if task_type == 'binary' else 'macro'
         metrics = self.evaluate_model(y_test, y_pred, average=average)
         
+        # Add weighted F1 for multiclass
+        if task_type == 'multiclass':
+            metrics['f1_weighted'] = f1_score(y_test, y_pred, average='weighted')
+        
         print(f"  Test Accuracy: {metrics['accuracy']:.4f}")
         print(f"  Test Precision: {metrics['precision']:.4f}")
         print(f"  Test Recall: {metrics['recall']:.4f}")
         print(f"  Test F1: {metrics['f1']:.4f}")
+        
+        if task_type == 'multiclass':
+            print(f"  Test F1 (weighted): {metrics['f1_weighted']:.4f}")
+        
         print(f"\nConfusion Matrix:")
         print(metrics['confusion_matrix'])
         
@@ -635,13 +643,6 @@ class SupervisedAMRAnalysis:
             task_type='multiclass'
         )
         
-        # Add weighted F1 for multiclass
-        y_pred_test = best_result['pipeline'].predict(pd.concat([X_train, X_val]))
-        y_pred_test = best_result['pipeline'].predict(X_test)
-        test_metrics['f1_weighted'] = f1_score(y_test, y_pred_test, average='weighted')
-        
-        print(f"  Test F1 (weighted): {test_metrics['f1_weighted']:.4f}")
-        
         return {
             'task': 'species_classification',
             'all_models': results,
@@ -755,12 +756,6 @@ class SupervisedAMRAnalysis:
             y_train, y_val, y_test,
             task_type='multiclass'
         )
-        
-        # Add weighted F1
-        y_pred_test = best_result['pipeline'].predict(X_test)
-        test_metrics['f1_weighted'] = f1_score(y_test, y_pred_test, average='weighted')
-        
-        print(f"  Test F1 (weighted): {test_metrics['f1_weighted']:.4f}")
         
         return {
             'task': f'{target_col}_classification',
