@@ -155,27 +155,85 @@ predict_from_csv(
 )
 ```
 
-### Scenario 2: Web Application
-Real-time decision support:
+### Scenario 2: FastAPI REST API
+Real-time decision support with modern REST API:
 
-```python
-from flask import Flask, request, jsonify
-from model_deployment import ModelDeployment
-
-app = Flask(__name__)
-model = ModelDeployment('high_MAR_model.pkl')
-
-@app.route('/predict', methods=['POST'])
-def predict():
-    features = request.json
-    result = model.predict_single(features, return_proba=True)
-    return jsonify({
-        'prediction': 'High MAR' if result['prediction'] == 1 else 'Low MAR',
-        'confidence': max(result['probability_class_0'], result['probability_class_1'])
-    })
+```bash
+# Start FastAPI server
+uvicorn api:app --reload --port 8000
 ```
 
-### Scenario 3: Surveillance Dashboard
+**Features:**
+- RESTful API endpoints
+- Automatic OpenAPI documentation
+- Request/response validation
+- Model caching for performance
+- CORS support for frontend integration
+
+**Example Usage:**
+
+```python
+import requests
+
+# Single prediction
+response = requests.post(
+    'http://localhost:8000/predict',
+    json={
+        'features': {
+            'ampicillin_binary': 1.0,
+            'gentamicin_binary': 0.0,
+            'ciprofloxacin_binary': 0.0,
+            # ... all required features
+        },
+        'model_path': 'high_MAR_model.pkl',
+        'return_proba': True
+    }
+)
+
+result = response.json()
+print(f"Prediction: {result['prediction']}")
+print(f"Confidence: {result['probability_class_1']:.2%}")
+
+# Batch prediction with CSV upload
+with open('new_isolates.csv', 'rb') as f:
+    files = {'file': f}
+    response = requests.post(
+        'http://localhost:8000/predict/batch',
+        files=files,
+        data={'model_path': 'high_MAR_model.pkl'}
+    )
+    
+# Save predictions
+with open('predictions.csv', 'wb') as f:
+    f.write(response.content)
+```
+
+**API Documentation:**
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
+
+### Scenario 3: Streamlit Web Application
+Interactive web interface for non-technical users:
+
+```bash
+# Start Streamlit app
+streamlit run app.py
+```
+
+**Features:**
+- 📊 Model information dashboard
+- 🔬 Single isolate prediction form
+- 📁 CSV upload for batch predictions
+- 📈 Interactive visualizations
+- ⬇️ Download prediction results
+
+**Use Cases:**
+- Clinical decision support
+- Laboratory information systems
+- Epidemiological surveillance
+- Educational demonstrations
+
+### Scenario 4: Surveillance Dashboard
 Monitor trends over time:
 
 ```python

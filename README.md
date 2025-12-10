@@ -46,8 +46,20 @@ The AMR analysis pipeline consists of four main phases:
 
 ### Requirements
 
+Install all dependencies using the requirements file:
+
 ```bash
+pip install -r requirements.txt
+```
+
+Or install core packages manually:
+
+```bash
+# Core data science libraries
 pip install pandas numpy scikit-learn matplotlib seaborn mlxtend umap-learn
+
+# Web frameworks for deployment
+pip install fastapi uvicorn streamlit plotly python-multipart
 ```
 
 **Note:** `umap-learn` is optional but recommended for UMAP analysis.
@@ -1631,6 +1643,74 @@ python deploy_model.py \
     --output predictions.csv \
     --no-proba
 ```
+
+#### 4.2.4 Web Deployment with FastAPI
+
+```bash
+# Start FastAPI server
+uvicorn api:app --reload --port 8000
+
+# API will be available at:
+# - http://localhost:8000 (API root)
+# - http://localhost:8000/docs (Swagger UI)
+# - http://localhost:8000/redoc (ReDoc documentation)
+```
+
+**Available Endpoints:**
+- `GET /` - API information
+- `GET /health` - Health check
+- `GET /models` - List available models
+- `POST /models/info` - Get model information
+- `POST /predict` - Single isolate prediction
+- `POST /predict/batch` - Batch prediction from CSV
+
+**Example API Usage:**
+
+```python
+import requests
+
+# Single prediction
+response = requests.post(
+    'http://localhost:8000/predict',
+    json={
+        'features': {
+            'ampicillin_binary': 1.0,
+            'gentamicin_binary': 0.0,
+            'ciprofloxacin_binary': 0.0,
+            # ... all required features
+        },
+        'model_path': 'high_MAR_model.pkl',
+        'return_proba': True
+    }
+)
+
+result = response.json()
+print(f"Prediction: {result['prediction']}")
+print(f"Probability: {result['probability_class_1']:.2%}")
+```
+
+#### 4.2.5 Web UI with Streamlit
+
+```bash
+# Start Streamlit app
+streamlit run app.py
+
+# App will open in your browser at http://localhost:8501
+```
+
+**Features:**
+- 📊 **Model Information**: View model details, metrics, and hyperparameters
+- 🔬 **Single Prediction**: Interactive form for predicting individual isolates
+- 📁 **Batch Prediction**: Upload CSV files for bulk predictions with visualization
+- 📈 **Results Visualization**: Charts and graphs for prediction distribution
+- ⬇️ **Download Results**: Export predictions as CSV
+
+The Streamlit app provides a user-friendly interface for:
+1. Loading and viewing model information
+2. Making single isolate predictions with visual confidence indicators
+3. Uploading CSV files for batch predictions
+4. Visualizing prediction distributions with interactive charts
+5. Downloading prediction results
 
 ## Model Metadata
 
