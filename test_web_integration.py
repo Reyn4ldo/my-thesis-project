@@ -81,6 +81,7 @@ def test_streamlit_module():
         import importlib.util
         spec = importlib.util.spec_from_file_location('app', 'app.py')
         app_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(app_module)
         print_success("Streamlit app module validated")
         return True
     except Exception as e:

@@ -10,12 +10,12 @@ Endpoints:
     GET  /               - API information
     GET  /health         - Health check
     GET  /models         - List available models
-    POST /models/{model_name}/info - Get model information
+    POST /models/info    - Get model information
     POST /predict        - Single isolate prediction
     POST /predict/batch  - Batch prediction from CSV
 
 Author: Thesis Project
-Date: December 2025
+Date: December 2024
 """
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Body

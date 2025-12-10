@@ -11,7 +11,7 @@ Usage:
     streamlit run app.py
 
 Author: Thesis Project
-Date: December 2025
+Date: December 2024
 """
 
 import streamlit as st
