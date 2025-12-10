@@ -71,3 +71,6 @@ htmlcov/
 # Temporary files
 *.tmp
 *.bak
+
+# Streamlit cache
+.streamlit/
